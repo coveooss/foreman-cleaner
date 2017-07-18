@@ -8,7 +8,7 @@ from subprocess import call
 
 
 class ForemanProxy(object):
-    def __init__(self, url, auth=none, verify=False):
+    def __init__(self, url, auth=None, verify=False):
         self.session = requests.Session()
         self.url = url
 
@@ -17,7 +17,7 @@ class ForemanProxy(object):
 
         self.session.headers.update(
         {
-            'Accept': 'application/json; version=%s' % api_version,
+            'Accept': 'application/json; version=1.15',
             'Content-type': 'application/json',
         })
 
@@ -38,7 +38,7 @@ def clean_old_host():
     foreman_url = os.environ.get('FORMAN_URL')
     foreman_user = os.environ.get('FORMAN_USER')
     foreman_password = os.environ.get('FORMAN_PASSWORD')
-    foreman_proxy_url = "{}:{}".format(os.environ.get('FORMANPROXY_HOST'),os.getenv('FORMANPROXY_PORT','8443'))
+    foreman_proxy_url = "https://{}:{}".format(os.environ.get('FORMANPROXY_HOST'),os.getenv('FORMANPROXY_PORT','8443'))
     delay = os.getenv('FOREMAN_CLEAN_DELAY', '1')
 
     #connect to Foreman and ForemanProxy
