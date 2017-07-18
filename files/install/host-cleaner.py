@@ -35,10 +35,10 @@ class ForemanProxy(object):
 def clean_old_host():
 
     # Retrieve config from ENV
-    foreman_url = os.environ.get('FORMAN_URL')
-    foreman_user = os.environ.get('FORMAN_USER')
-    foreman_password = os.environ.get('FORMAN_PASSWORD')
-    foreman_proxy_url = "https://{}:{}".format(os.environ.get('FORMANPROXY_HOST'),os.getenv('FORMANPROXY_PORT','8443'))
+    foreman_url = os.environ.get('FOREMAN_URL')
+    foreman_user = os.environ.get('FOREMAN_USER')
+    foreman_password = os.environ.get('FOREMAN_PASSWORD')
+    foreman_proxy_url = "https://{}:{}".format(os.environ.get('FOREMANPROXY_HOST'),os.getenv('FOREMANPROXY_PORT','8443'))
     delay = os.getenv('FOREMAN_CLEAN_DELAY', '1')
 
     #connect to Foreman and ForemanProxy
