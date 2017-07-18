@@ -4,8 +4,9 @@ LABEL maintainer "coveo"
 
 # Install requierements
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y wget cron python puppet
-    
+    DEBIAN_FRONTEND=noninteractive apt-get install -y wget cron python puppet python-setuptools python-dev build-essential && \
+    easy_install pip
+
 RUN service puppet stop && systemctl disable puppet
 
 # Create install dir and clean apt cache
