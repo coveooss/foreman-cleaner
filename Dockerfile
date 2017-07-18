@@ -3,7 +3,9 @@ FROM ubuntu:16.04
 LABEL maintainer "coveo"
 
 # Install requierements
-RUN DEBIAN_FRONTEND=noninteractive apt-get install -y wget cron python puppet
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y wget cron python puppet
+    
 RUN service puppet stop && systemctl disable puppet
 
 # Create install dir and clean apt cache
