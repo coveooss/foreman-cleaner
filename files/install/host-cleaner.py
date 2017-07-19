@@ -11,7 +11,7 @@ class ForemanProxy(object):
     def __init__(self, url, auth=None, verify=False):
         self.session = requests.Session()
         self.url = url
-
+        self.session.verify = verify
         if auth is not None:
             self.session.auth = auth
 
@@ -22,13 +22,15 @@ class ForemanProxy(object):
         })
 
         fqdn = socket.getfqdn()
-        self.session.cert = ('/var/lib/puppet/ssl/certs/{}.pem'.format(fqdn), '/var/lib/puppet/ssl/keys/{}.pem'.format(fqdn))
+        self.session.cert = ('/var/lib/puppet/ssl/certs/{}.pem'.format(fqdn), '/var/lib/puppet/ssl/private_keys/{}.pem'.format(fqdn))
 
     def delete_certificate(self, host):
         uri = "/puppet/ca/{}".format(host)
         r = self.session.delete(self.url + uri)
         if r.status_code < 200 or r.status_code >= 300:
             print('Something went wrong: %s' % r.text)
+        else:
+            print('{} deleted'.format(host))
         return r
 
 @baker.command()
@@ -38,7 +40,7 @@ def clean_old_host():
     foreman_url = os.environ.get('FOREMAN_URL')
     foreman_user = os.environ.get('FOREMAN_USER')
     foreman_password = os.environ.get('FOREMAN_PASSWORD')
-    foreman_proxy_url = "https://{}:{}".format(os.environ.get('FOREMANPROXY_HOST'),os.getenv('FOREMANPROXY_PORT','8443'))
+    foreman_proxy_url = "https://{}:{}".format(os.environ.get('FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT','8443'))
     delay = os.getenv('FOREMAN_CLEAN_DELAY', '1')
 
     #connect to Foreman and ForemanProxy
@@ -63,7 +65,7 @@ def clean_old_host():
             lastcompile = f.show_hosts(id=host["host"]["id"])["host"]["last_compile"]
             #Convert the string date to datetime format
             if lastcompile:
-                hostdate = datetime.datetime.strptime(lastcompile,'%Y-%m-%dT%H:%M:%SZ')
+                hostdate = datetime.datetime.strptime(lastcompile,'%Y-%m-%dT%H:%M:%S.%fZ')
                 #Get the delta between the last puppet repport and the current date
                 elapsed = currentdate - hostdate
                 # if the deta is more than $delay days we delete the host
@@ -73,7 +75,6 @@ def clean_old_host():
                     f.destroy_hosts(id=host["host"]["id"])
                     #remove the certificate in puppet
                     fp.delete_certificate(host["host"]["name"])
-
 
 ## Read option
 if __name__ == "__main__":
