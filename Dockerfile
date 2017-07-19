@@ -20,4 +20,4 @@ COPY files/install /install
 RUN chmod +x /install/entrypoint.sh
 
 ENTRYPOINT ["/install/entrypoint.sh"]
-CMD ["tailf", "/var/log/cron.log"]
+CMD ["tail", "-f", "/var/log/cron.log"]
