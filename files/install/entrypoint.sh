@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -e
-
 # Create Certificate
 puppet agent --noop --server=$FOREMANPROXY_HOST
 
@@ -12,6 +10,4 @@ chmod +x /root/envs.sh
 # Add cron for clean
 echo "0 * * * * root . /root/envs.sh; /usr/bin/python -W ignore /install/host-cleaner.py clean_old_host >> /var/log/cron.log" >> /etc/cron.d/foreman-cleaner
 
-service cron restart
-
-exec "$@"
+service cron restart && tail -f /var/log/cron.log
