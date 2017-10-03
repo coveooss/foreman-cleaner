@@ -3,6 +3,7 @@ import datetime
 import os
 import requests
 import socket
+import json
 from foreman.client import Foreman
 
 
@@ -42,7 +43,7 @@ class ForemanProxy(object):
 
 
 @baker.command()
-def clean_old_certificates():
+def clean_old_certificates(json_file=None):
     # Retrieve config from ENV
     foreman_url = os.environ.get('FOREMAN_URL')
     foreman_user = os.environ.get('FOREMAN_USER')
@@ -55,7 +56,14 @@ def clean_old_certificates():
 
     # Build a certificates list with only hostcert, discarding specific certs used for foreman, puppet, etc ...
     host_pattern = ['ndev', 'nsta', 'nifd', 'npra', 'nifp', 'nhip', 'nifh', 'win']
-    certs = fp.get_certificates().keys()
+    if not json_file:
+        certs = fp.get_certificates().keys()
+    else:
+        try:
+            with open(json_file) as data_file:
+                certs = json.load(data_file)
+        except:
+            print("Cant't decode json file")
     certs = [cert for cert in certs if any(pattern in cert for pattern in host_pattern)]
     foreman_hosts = []
 
