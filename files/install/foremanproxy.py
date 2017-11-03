@@ -25,7 +25,7 @@ class ForemanProxy(object):
         if r.status_code < 200 or r.status_code >= 300:
             print('Something went wrong: %s' % r.text)
         else:
-            print('{} deleted'.format(host))
+            print('Puppet - {} deleted'.format(host))
         return r
 
     def get_certificates(self):

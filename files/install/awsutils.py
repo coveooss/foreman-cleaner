@@ -1,6 +1,7 @@
 import ldap
 import boto3
 from botocore.exceptions import ClientError
+import re
 
 
 class NotFound(Exception):
@@ -39,13 +40,14 @@ class AwsDs(object):
         return self._computers
 
     def delete_computer(self, hostname):
-        computer_found = [attr for c_dn, attr in self.computers if 'dNSHostName' in attr if hostname.lower() == attr['dNSHostName'][0].lower()]
+        computer_found = [attr for c_dn, attr in self.computers if 'dNSHostName' in attr
+                          if re.match('^{}.*'.format(hostname.lower()), attr['dNSHostName'][0].lower())]
         if len(computer_found) > 1:
             raise TooManyResult
         elif not computer_found:
             raise NotFound
         else:
-            #print("DS - delete : {}".format(computer_found[0]['distinguishedName'][0]))
+            print("DS - delete : {}".format(computer_found[0]['distinguishedName'][0]))
             self._con.delete_s(computer_found[0]['distinguishedName'][0])
 
 
