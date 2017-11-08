@@ -7,6 +7,7 @@ from foremanproxy import ForemanProxy
 from awsutils import get_ec2_instance_state, AwsDs
 import ldap
 import re
+import socket
 
 
 @baker.command()
@@ -70,6 +71,10 @@ def clean_ds():
     bind_user_dn = os.environ.get('DS_USER')
     bind_password = os.environ.get('DS_PASSWORD')
 
+    # Stats
+    saved = 0
+    deleted = 0
+
     # connect to Foreman and ForemanProxy
     f=Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
 
@@ -83,38 +88,55 @@ def clean_ds():
     page = 1
     result = []
     last_len = 1
+
     while last_len > 0:
         tmp_result = f.index_hosts(per_page="1000", page=str(page))['results']
         last_len = len(tmp_result)
         page += 1
         result += tmp_result
-    foreman_hosts = [host["certname"] for host in result]
+    foreman_hosts = {host["certname"]: host["ip"] for host in result}
 
     # Get all ds computer
     ds_computers = [attr['dNSHostName'][0].lower() for c_dn, attr in ds.computers if 'dNSHostName' in attr]
+    to_delete = ds_computers
+
+    """
     to_delete = []
 
     # (Optional) filter which instances should be cleaned
     for ds_computer in ds_computers:
-        if re.match('^ndev-al.*', ds_computer):
+        if re.match('^npra-al.*', ds_computer) or re.match('^npra-aw.*', ds_computer):
             to_delete.append(ds_computer)
-        elif re.match('^ndev-aw.*', ds_computer):
-            to_delete.append(ds_computer)
+    """
 
-    # Exlude host that exist in foreman to the list of instances retrieve from the DS
-    for foreman_host in foreman_hosts:
+    # Exlude host that exist in foreman to the list of instances retrieve from the DS555442
+    for foreman_host in foreman_hosts.keys():
         for i, ds_computer in enumerate(to_delete):
             if re.match('^{}.*'.format(foreman_host), ds_computer):
                 del to_delete[i]
 
     for host in to_delete:
+        try:
+            ip_address = socket.gethostbyname(host)
+            found = True
+        except:
+            found = False
+
         # Make the following 2 call only at the end in order to avoid useless consuming API call
         try:
-            print "I will destroy the server "+host
+            if found:
+                is_terminated = (get_ec2_instance_state('', ip=ip_address) == 'terminated')
+                if not is_terminated:
+                    print("{} is not terminated, ignoring this instance".format(host))
+                    saved += 1
+                    continue
+            print("I will destroy the server {}".format(host))
             # remove host in the DS
             ds.delete_computer(host)
+            deleted += 1
         except Exception as e:
             print("Something went wrong : {}".format(e))
+    print("{} instances deleted\n{} instances saved\n{} instances in foreman\n".format(deleted, saved, len(foreman_hosts)))
 
 
 @baker.command()

@@ -51,13 +51,22 @@ class AwsDs(object):
             self._con.delete_s(computer_found[0]['distinguishedName'][0])
 
 
-def get_ec2_instance_state(instance_id):
+def get_ec2_instance_state(instance_id, ip=None):
     client = boto3.client('ec2')
     state = 'terminated'
+    options = {"InstanceIds": [instance_id]}
+    if ip:
+        options = {"Filters": [
+            {
+                'Name': 'private-ip-address',
+                'Values': [ip]
+            },
+        ]}
+
     try:
-        rsp = client.describe_instances(InstanceIds=[instance_id])
+        rsp = client.describe_instances(**options)
         if rsp['Reservations']:
-            state = rsp['Reservations'][0]['Instances'][0]
+            state = rsp['Reservations'][0]['Instances'][0]['State']['Name']
     except ClientError as e:
         if e.response['Error']['Code'] == 'InvalidInstanceID.NotFound':
             pass
