@@ -6,12 +6,12 @@ import re
 
 class NotFound(Exception):
     def __init__(self, *args, **kwargs):
-        pass
+        Exception.__init__(self, *args, **kwargs)
 
 
 class TooManyResult(Exception):
     def __init__(self, *args, **kwargs):
-        pass
+        Exception.__init__(self, *args, **kwargs)
 
 
 class AwsDs(object):
@@ -43,9 +43,9 @@ class AwsDs(object):
         computer_found = [attr for c_dn, attr in self.computers if 'dNSHostName' in attr
                           if re.match('^{}.*'.format(hostname.lower()), attr['dNSHostName'][0].lower())]
         if len(computer_found) > 1:
-            raise TooManyResult
+            raise TooManyResult("There is more than 1 result on DS lookup")
         elif not computer_found:
-            raise NotFound
+            raise NotFound("Host not found in DS")
         else:
             print("DS - delete : {}".format(computer_found[0]['distinguishedName'][0]))
             self._con.delete_s(computer_found[0]['distinguishedName'][0])
