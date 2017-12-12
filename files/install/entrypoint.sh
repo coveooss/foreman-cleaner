@@ -4,7 +4,7 @@
 puppet agent --noop --server=$FOREMANPROXY_HOST
 
 # Get env variable for cronjob
-env | grep -E 'FOREMAN|DS|LDAP|COMPUTER_DN' | sed 's/^\(.*\)$/export \1/g' > /root/envs.sh
+env | grep -E 'AWS|FOREMAN|DS|LDAP|COMPUTER_DN' | sed 's/^\(.*\)$/export \1/g' > /root/envs.sh
 chmod +x /root/envs.sh
 
 # Add cron for clean
