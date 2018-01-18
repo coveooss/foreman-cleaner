@@ -66,7 +66,7 @@ def clean_old_certificates(json_file=None):
     get_next_page = True
     page = 1
     while get_next_page:
-        result = f.index_hosts(per_page="1000")
+        result = f.index_hosts(per_page="1000", page=str(page))
         if len(result) == 1000:
             page += 1
         else:
