@@ -8,6 +8,32 @@ from awsutils import get_ec2_instance_state, AwsDs
 import ldap
 import re
 import socket
+import logging
+
+
+def foreman_wrapper(foreman_call, call_args=None):
+    last_len = 1
+    args = call_args or {}
+
+    if "kwargs" in call_args:
+        args['kwargs']['page'] = 1
+    else:
+        args['page'] = 1
+
+    result = foreman_call(**args)['results']
+    while last_len > 0:
+        if "kwargs" in call_args:
+            args['kwargs']['page'] += 1
+        else:
+            args['page'] += 1
+        tmp_result = foreman_call(**args)['results']
+        last_len = len(tmp_result)
+
+        if isinstance(tmp_result, dict):
+            result.update(tmp_result)
+        else:
+            result += tmp_result
+    return result
 
 
 @baker.command()
@@ -109,7 +135,7 @@ def clean_ds():
             to_delete.append(ds_computer)
     """
 
-    # Exlude host that exist in foreman to the list of instances retrieve from the DS555442
+    # Exlude host that exist in foreman to the list of instances retrieve from the DS
     for foreman_host in foreman_hosts.keys():
         for i, ds_computer in enumerate(to_delete):
             if re.match('^{}.*'.format(foreman_host), ds_computer):
@@ -167,22 +193,24 @@ def clean_old_host():
     currentdate = datetime.datetime.utcnow()
 
     # check for all host
-    page = 1
-    result = []
-    last_len = 1
-    while last_len > 0:
-        tmp_result = f.index_hosts(per_page="1000", page=str(page))['results']
-        last_len = len(tmp_result)
-        page += 1
-        result += tmp_result
 
+    instance_id_dict = foreman_wrapper(f.do_get, call_args={'url': '/api/fact_values?&search=+name+%3D+ec2_instance_id',
+                                                            'kwargs': {'per_page': 1000}})
+    result = foreman_wrapper(f.index_hosts, call_args={"per_page": 1000})
     for host in result:
         # get the compile date
-        lastcompile = f.show_hosts(id=host["id"])["last_compile"]
+        lastcompile = None
+        if host["last_compile"]:
+            lastcompile = host["last_compile"]
+        elif host["last_report"]:
+            lastcompile = host["last_report"]
+        elif host["created_at"]:
+            lastcompile = host["created_at"]
+
         # Convert the string date to datetime format
-        if not lastcompile:
-            print("Can't retrieve last compile date, skipping {}".format(host["certname"]))
-            continue
+        if not host["last_compile"] and not host["last_report"] and host["created_at"]:
+            logging.info("Can't retrieve last compile/report date for {}, will use create time ({})".format(
+                host["certname"], host["created_at"]))
 
         hostdate = datetime.datetime.strptime(lastcompile, '%Y-%m-%dT%H:%M:%S.%fZ')
         # Get the delta between the last puppet repport and the current date
@@ -191,14 +219,21 @@ def clean_old_host():
         if elapsed > datetime.timedelta(hours=int(delay)):
             # Make the following 2 call only at the end in order to avoid useless consuming API call
             try:
-                instance_id = f.do_get('/api/hosts/{}/facts'.format(host["id"]), {"search": "ec2_instance_id"})['results'][host["name"]]["ec2_instance_id"]
+                instance_id = instance_id_dict[host['name']]['ec2_instance_id']
                 is_terminated = (get_ec2_instance_state(instance_id) == 'terminated')
+            except KeyError:
+                if host['ip']:
+                    is_terminated = (get_ec2_instance_state('', ip=host['ip']) == 'terminated')
+                else:
+                    logging.warning("Can't retrieve EC2 id or ip, skipping {}".format(host["certname"]))
+                    continue
             except Exception as e:
-                print("Can't retrieve EC2 state, skipping {} : {}".format(host["certname"], e))
+                logging.warning("Can't retrieve EC2 state, skipping {} : {}".format(host["certname"], e))
                 continue
+
             if is_terminated:
                 try:
-                    print("I will destroy the server {} because the last report was {}".format(host["certname"], str(lastcompile)))
+                    logging.info("I will destroy the server {} because the last report was {}".format(host["certname"], str(lastcompile)))
                     # destroy the host in foreman
                     f.destroy_hosts(id=host["id"])
                     # remove the certificate in puppet
@@ -206,8 +241,16 @@ def clean_old_host():
                     # remove host in the DS
                     ds.delete_computer(host["certname"])
                 except Exception as e:
-                    print("Something went wrong : {}".format(e))
+                    logging.error("Something went wrong : {}".format(e))
 
 # Read option
 if __name__ == "__main__":
-  baker.run()
+    logger = logging.getLogger()
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s %(levelname)-8s %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
+    baker.run()
