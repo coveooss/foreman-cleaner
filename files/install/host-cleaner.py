@@ -9,6 +9,7 @@ import ldap
 import re
 import socket
 import logging
+import sys
 
 
 def foreman_wrapper(foreman_call, call_args=None):
@@ -46,39 +47,32 @@ def clean_old_certificates(json_file=None):
     foreman_proxy_url = "https://{}:{}".format(os.environ.get('FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT','8443'))
 
     # connect to Foreman and ForemanProxy
-    f=Foreman(foreman_url, (foreman_user, foreman_password))
+    f=Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
     fp = ForemanProxy(foreman_proxy_url)
 
     # Build a certificates list with only hostcert, discarding specific certs used for foreman, puppet, etc ...
-    host_pattern = ['ndev', 'nsta', 'nifd', 'npra', 'nifp', 'nhip', 'nifh', 'win']
+    host_pattern = ['ndev', 'nsta', 'nifd', 'npra', 'nifp-es5k', 'nhip', 'nifh', 'win', 'nprd']
     if not json_file:
-        certs = fp.get_certificates().keys()
+        jcerts = fp.get_certificates().keys()
     else:
         try:
             with open(json_file) as data_file:
-                certs = json.load(data_file)
+                jcerts = json.load(data_file)
         except:
             print("Cant't decode json file")
-    certs = [cert for cert in certs if any(pattern in cert for pattern in host_pattern)]
+            sys.exit(0)
+    certs = [cert for cert in jcerts if any(pattern in cert for pattern in host_pattern)]
     foreman_hosts = []
 
-    # Get all host in foreman
-    get_next_page = True
-    page = 1
-    while get_next_page:
-        result = f.index_hosts(per_page="1000", page=str(page))
-        if len(result) == 1000:
-            page += 1
-        else:
-            get_next_page = False
-        for host in result:
-            foreman_hosts.append(host["host"]["name"])
+    result = foreman_wrapper(f.index_hosts, call_args={"per_page": 1000})
+    for host in result:
+        foreman_hosts.append(host["certname"])
 
     certs_to_delete = list(set(certs) - set(foreman_hosts))
 
     for cert in certs_to_delete:
-        print(" {} will be deleted".format(cert))
         try:
+            print(" {} will be deleted".format(cert))
             fp.delete_certificate(cert)
         except:
             print(" {} couldn't be deleted".format(cert))
@@ -91,7 +85,6 @@ def clean_ds():
     foreman_url = os.environ.get('FOREMAN_URL')
     foreman_user = os.environ.get('FOREMAN_USER')
     foreman_password = os.environ.get('FOREMAN_PASSWORD')
-    delay = os.getenv('FOREMAN_CLEAN_DELAY', '1')
     ldap_host = os.environ.get('LDAP_HOST')
     computers_base_dn = os.environ.get('COMPUTER_DN')
     bind_user_dn = os.environ.get('DS_USER')
@@ -179,6 +172,8 @@ def clean_old_host():
     bind_user_dn = os.environ.get('DS_USER')
     bind_password = os.environ.get('DS_PASSWORD')
 
+    logging.info("########## Start Cleaning ###########")
+
     # connect to Foreman and ForemanProxy
     f=Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
     fp = ForemanProxy(foreman_proxy_url)
@@ -242,15 +237,16 @@ def clean_old_host():
                     ds.delete_computer(host["certname"])
                 except Exception as e:
                     logging.error("Something went wrong : {}".format(e))
+        else:
+            logging.debug("{} OK: Last puppet's run : {}".format(host["certname"], lastcompile))
 
 # Read option
 if __name__ == "__main__":
     logger = logging.getLogger()
-    handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s %(levelname)-8s %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
     logger.setLevel(logging.INFO)
+    sh = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
 
     baker.run()
