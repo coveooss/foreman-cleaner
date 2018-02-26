@@ -8,6 +8,7 @@ from awsutils import get_ec2_instance_state, AwsDs
 import ldap
 import re
 import socket
+from subprocess import check_output
 import logging
 import sys
 
@@ -37,31 +38,38 @@ def foreman_wrapper(foreman_call, call_args=None):
     return result
 
 
-@baker.command()
-def clean_old_certificates(json_file=None):
+@baker.command(params={"check_on_fs": "Check on /var/lib/puppet/ssl/ca/signed/ to get the certificate list",
+                       "json_file": "Path to json file with the list on certificater to delete"})
+def clean_old_certificates(json_file=None, check_on_fs=False):
     """ This is a 'one time use' method that will clear all puppet cert for instances that doesn't still exist """
     # Retrieve config from ENV
     foreman_url = os.environ.get('FOREMAN_URL')
     foreman_user = os.environ.get('FOREMAN_USER')
     foreman_password = os.environ.get('FOREMAN_PASSWORD')
-    foreman_proxy_url = "https://{}:{}".format(os.environ.get('FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT','8443'))
+    foreman_proxy_url = "https://{}:{}".format(os.environ.get(
+        'FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT', '8443'))
 
     # connect to Foreman and ForemanProxy
-    f=Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
+    f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
     fp = ForemanProxy(foreman_proxy_url)
 
-    # Build a certificates list with only hostcert, discarding specific certs used for foreman, puppet, etc ...
-    host_pattern = ['ndev', 'nsta', 'nifd', 'npra', 'nifp-es5k', 'nhip', 'nifh', 'win', 'nprd']
-    if not json_file:
-        jcerts = fp.get_certificates().keys()
+    host_pattern = ['ndev', 'nsta', 'nifd', 'npra',
+                    'nifp-es5k', 'nhip', 'nifh', 'win', 'nprd']
+    if not json_file and check_on_fs:
+        jcerts = check_output(
+            ["ls", "-f", "/var/lib/puppet/ssl/ca/signed/"]).split()
+    elif not json_file and not check_on_fs:
+        fp_certs fp.get_certificates()
+        jcerts = [c for c in fp_certs if fp_certs[c].get('state') == 'valid']
     else:
         try:
             with open(json_file) as data_file:
                 jcerts = json.load(data_file)
-        except:
-            print("Cant't decode json file")
+        except Exception as e:
+            print("Cant't decode json file: {}".format(e))
             sys.exit(0)
-    certs = [cert for cert in jcerts if any(pattern in cert for pattern in host_pattern)]
+    certs = [cert.replace(".pem", "") for cert in jcerts if any(
+        pattern in cert for pattern in host_pattern)]
     foreman_hosts = []
 
     result = foreman_wrapper(f.index_hosts, call_args={"per_page": 1000})
@@ -74,8 +82,9 @@ def clean_old_certificates(json_file=None):
         try:
             print(" {} will be deleted".format(cert))
             fp.delete_certificate(cert)
-        except:
-            print(" {} couldn't be deleted".format(cert))
+
+        except Exception as e:
+            print(" {} couldn't be deleted: {}".format(cert, e))
 
 
 @baker.command()
@@ -95,11 +104,11 @@ def clean_ds():
     deleted = 0
 
     # connect to Foreman and ForemanProxy
-    f=Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
+    f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
 
     # Connect to the DS
     try:
-        ds = AwsDs(ldap_host, computers_base_dn ,bind_user_dn, bind_password)
+        ds = AwsDs(ldap_host, computers_base_dn, bind_user_dn, bind_password)
     except ldap.INVALID_CREDENTIALS:
         raise "Your username or password is incorrect."
 
@@ -116,7 +125,8 @@ def clean_ds():
     foreman_hosts = {host["certname"]: host["ip"] for host in result}
 
     # Get all ds computer
-    ds_computers = [attr['dNSHostName'][0].lower() for c_dn, attr in ds.computers if 'dNSHostName' in attr]
+    ds_computers = [attr['dNSHostName'][0].lower()
+                    for c_dn, attr in ds.computers if 'dNSHostName' in attr]
     to_delete = ds_computers
 
     """
@@ -144,7 +154,8 @@ def clean_ds():
         # Make the following 2 call only at the end in order to avoid useless consuming API call
         try:
             if found:
-                is_terminated = (get_ec2_instance_state('', ip=ip_address) == 'terminated')
+                is_terminated = (get_ec2_instance_state(
+                    '', ip=ip_address) == 'terminated')
                 if not is_terminated:
                     print("{} is not terminated, ignoring this instance".format(host))
                     saved += 1
@@ -155,7 +166,8 @@ def clean_ds():
             deleted += 1
         except Exception as e:
             print("Something went wrong : {}".format(e))
-    print("{} instances deleted\n{} instances saved\n{} instances in foreman\n".format(deleted, saved, len(foreman_hosts)))
+    print("{} instances deleted\n{} instances saved\n{} instances in foreman\n".format(
+        deleted, saved, len(foreman_hosts)))
 
 
 @baker.command()
@@ -165,7 +177,8 @@ def clean_old_host():
     foreman_url = os.environ.get('FOREMAN_URL')
     foreman_user = os.environ.get('FOREMAN_USER')
     foreman_password = os.environ.get('FOREMAN_PASSWORD')
-    foreman_proxy_url = "https://{}:{}".format(os.environ.get('FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT','8443'))
+    foreman_proxy_url = "https://{}:{}".format(os.environ.get(
+        'FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT', '8443'))
     delay = os.getenv('FOREMAN_CLEAN_DELAY', '1')
     ldap_host = os.environ.get('LDAP_HOST')
     computers_base_dn = os.environ.get('COMPUTER_DN')
@@ -175,12 +188,12 @@ def clean_old_host():
     logging.info("########## Start Cleaning ###########")
 
     # connect to Foreman and ForemanProxy
-    f=Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
+    f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
     fp = ForemanProxy(foreman_proxy_url)
 
-    # Connect to the DS
+   # Connect to the DS
     try:
-        ds = AwsDs(ldap_host, computers_base_dn ,bind_user_dn, bind_password)
+        ds = AwsDs(ldap_host, computers_base_dn, bind_user_dn, bind_password)
     except ldap.INVALID_CREDENTIALS:
         raise "Your username or password is incorrect."
 
@@ -188,7 +201,6 @@ def clean_old_host():
     currentdate = datetime.datetime.utcnow()
 
     # check for all host
-
     instance_id_dict = foreman_wrapper(f.do_get, call_args={'url': '/api/fact_values?&search=+name+%3D+ec2_instance_id',
                                                             'kwargs': {'per_page': 1000}})
     result = foreman_wrapper(f.index_hosts, call_args={"per_page": 1000})
@@ -207,7 +219,8 @@ def clean_old_host():
             logging.info("Can't retrieve last compile/report date for {}, will use create time ({})".format(
                 host["certname"], host["created_at"]))
 
-        hostdate = datetime.datetime.strptime(lastcompile, '%Y-%m-%dT%H:%M:%S.%fZ')
+        hostdate = datetime.datetime.strptime(
+            lastcompile, '%Y-%m-%dT%H:%M:%S.%fZ')
         # Get the delta between the last puppet repport and the current date
         elapsed = currentdate - hostdate
         # if the deta is more than $delay days we delete the host
@@ -215,20 +228,25 @@ def clean_old_host():
             # Make the following 2 call only at the end in order to avoid useless consuming API call
             try:
                 instance_id = instance_id_dict[host['name']]['ec2_instance_id']
-                is_terminated = (get_ec2_instance_state(instance_id) == 'terminated')
+                is_terminated = (get_ec2_instance_state(
+                    instance_id) == 'terminated')
             except KeyError:
                 if host['ip']:
-                    is_terminated = (get_ec2_instance_state('', ip=host['ip']) == 'terminated')
+                    is_terminated = (get_ec2_instance_state(
+                        '', ip=host['ip']) == 'terminated')
                 else:
-                    logging.warning("Can't retrieve EC2 id or ip, skipping {}".format(host["certname"]))
+                    logging.warning(
+                        "Can't retrieve EC2 id or ip, skipping {}".format(host["certname"]))
                     continue
             except Exception as e:
-                logging.warning("Can't retrieve EC2 state, skipping {} : {}".format(host["certname"], e))
+                logging.warning(
+                    "Can't retrieve EC2 state, skipping {} : {}".format(host["certname"], e))
                 continue
 
             if is_terminated:
                 try:
-                    logging.info("I will destroy the server {} because the last report was {}".format(host["certname"], str(lastcompile)))
+                    logging.info("I will destroy the server {} because the last report was {}".format(
+                        host["certname"], str(lastcompile)))
                     # destroy the host in foreman
                     f.destroy_hosts(id=host["id"])
                     # remove the certificate in puppet
@@ -238,7 +256,9 @@ def clean_old_host():
                 except Exception as e:
                     logging.error("Something went wrong : {}".format(e))
         else:
-            logging.debug("{} OK: Last puppet's run : {}".format(host["certname"], lastcompile))
+            logging.debug("{} OK: Last puppet's run : {}".format(
+                host["certname"], lastcompile))
+
 
 # Read option
 if __name__ == "__main__":
