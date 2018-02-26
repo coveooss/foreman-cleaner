@@ -12,6 +12,18 @@ from subprocess import check_output
 import logging
 import sys
 
+# Retrieve config from ENV
+foreman_url = os.environ.get('FOREMAN_URL')
+foreman_user = os.environ.get('FOREMAN_USER')
+foreman_password = os.environ.get('FOREMAN_PASSWORD')
+foreman_proxy_url = "https://{}:{}".format(os.environ.get(
+    'FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT', '8443'))
+delay = os.getenv('FOREMAN_CLEAN_DELAY', '1')
+ldap_host = os.environ.get('LDAP_HOST')
+computers_base_dn = os.environ.get('COMPUTER_DN')
+bind_user_dn = os.environ.get('DS_USER')
+bind_password = os.environ.get('DS_PASSWORD')
+
 
 def foreman_wrapper(foreman_call, call_args=None):
     last_len = 1
@@ -41,25 +53,19 @@ def foreman_wrapper(foreman_call, call_args=None):
 @baker.command(params={"check_on_fs": "Check on /var/lib/puppet/ssl/ca/signed/ to get the certificate list",
                        "json_file": "Path to json file with the list on certificater to delete"})
 def clean_old_certificates(json_file=None, check_on_fs=False):
-    """ This is a 'one time use' method that will clear all puppet cert for instances that doesn't still exist """
-    # Retrieve config from ENV
-    foreman_url = os.environ.get('FOREMAN_URL')
-    foreman_user = os.environ.get('FOREMAN_USER')
-    foreman_password = os.environ.get('FOREMAN_PASSWORD')
-    foreman_proxy_url = "https://{}:{}".format(os.environ.get(
-        'FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT', '8443'))
+    """ This method that will clear all puppet cert for instances that doesn't still exist """
 
     # connect to Foreman and ForemanProxy
     f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
     fp = ForemanProxy(foreman_proxy_url)
 
     host_pattern = ['ndev', 'nsta', 'nifd', 'npra',
-                    'nifp-es5k', 'nhip', 'nifh', 'win', 'nprd']
+                    'nifp-es5k', 'nhip', 'nifh', 'win', 'nprd', 'nqa', 'nifp']
     if not json_file and check_on_fs:
         jcerts = check_output(
             ["ls", "-f", "/var/lib/puppet/ssl/ca/signed/"]).split()
     elif not json_file and not check_on_fs:
-        fp_certs fp.get_certificates()
+        fp_certs = fp.get_certificates()
         jcerts = [c for c in fp_certs if fp_certs[c].get('state') == 'valid']
     else:
         try:
@@ -173,18 +179,6 @@ def clean_ds():
 @baker.command()
 def clean_old_host():
     """ Method call by cron to clean instances """
-    # Retrieve config from ENV
-    foreman_url = os.environ.get('FOREMAN_URL')
-    foreman_user = os.environ.get('FOREMAN_USER')
-    foreman_password = os.environ.get('FOREMAN_PASSWORD')
-    foreman_proxy_url = "https://{}:{}".format(os.environ.get(
-        'FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT', '8443'))
-    delay = os.getenv('FOREMAN_CLEAN_DELAY', '1')
-    ldap_host = os.environ.get('LDAP_HOST')
-    computers_base_dn = os.environ.get('COMPUTER_DN')
-    bind_user_dn = os.environ.get('DS_USER')
-    bind_password = os.environ.get('DS_PASSWORD')
-
     logging.info("########## Start Cleaning ###########")
 
     # connect to Foreman and ForemanProxy
