@@ -1,0 +1,5 @@
+click 
+python-foreman 
+requests 
+python-ldap 
+boto3

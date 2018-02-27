@@ -9,5 +9,6 @@ chmod +x /root/envs.sh
 
 # Add cron for clean
 echo "0 * * * * root . /root/envs.sh; /usr/bin/python -W ignore /install/host-cleaner.py clean_old_host > /proc/1/fd/1" >> /etc/cron.d/foreman-cleaner
-
+# Add cron to clean all old certificates 
+echo "30 11 * * * root . /root/envs.sh; /usr/bin/python -W ignore /install/host-cleaner.py clean_old_certificates > /proc/1/fd/1" >> /etc/cron.d/foreman-cleaner
 service cron restart && tail -f /var/log/cron.log
