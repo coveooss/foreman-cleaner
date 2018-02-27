@@ -60,7 +60,7 @@ def foreman_wrapper(foreman_call, call_args=None):
 @click.option("--json_file", default=None, help="Path to json file with the list on certificater to delete")
 def clean_old_certificates(json_file, check_on_fs):
     """ This method that will clear all puppet cert for instances that do not still exist """
-
+    logging.info("########## Start Cleaning ###########")
     # connect to Foreman and ForemanProxy
     f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
     fp = ForemanProxy(foreman_proxy_url)
@@ -185,12 +185,6 @@ def clean_ds():
 @main.command()
 def clean_old_host():
     """ Method call by cron to clean instances """
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    sh = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    sh.setFormatter(formatter)
-    logger.addHandler(sh)
     logging.info("########## Start Cleaning ###########")
 
     # connect to Foreman and ForemanProxy
@@ -268,4 +262,10 @@ def clean_old_host():
 
 # Read option
 if __name__ == "__main__":
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    sh = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
     main()
