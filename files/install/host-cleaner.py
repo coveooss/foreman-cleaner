@@ -1,4 +1,4 @@
-import baker
+import click
 import datetime
 import os
 import json
@@ -23,6 +23,11 @@ ldap_host = os.environ.get('LDAP_HOST')
 computers_base_dn = os.environ.get('COMPUTER_DN')
 bind_user_dn = os.environ.get('DS_USER')
 bind_password = os.environ.get('DS_PASSWORD')
+
+
+@click.group()
+def main():
+    pass
 
 
 def foreman_wrapper(foreman_call, call_args=None):
@@ -50,17 +55,18 @@ def foreman_wrapper(foreman_call, call_args=None):
     return result
 
 
-@baker.command(params={"check_on_fs": "Check on /var/lib/puppet/ssl/ca/signed/ to get the certificate list",
-                       "json_file": "Path to json file with the list on certificater to delete"})
-def clean_old_certificates(json_file=None, check_on_fs=False):
-    """ This method that will clear all puppet cert for instances that doesn't still exist """
+@main.command()
+@click.option("--check_on_fs", default=False, help="Check on /var/lib/puppet/ssl/ca/signed/ to get the certificate list")
+@click.option("--json_file", default=None, help="Path to json file with the list on certificater to delete")
+def clean_old_certificates(json_file, check_on_fs):
+    """ This method that will clear all puppet cert for instances that do not still exist """
 
     # connect to Foreman and ForemanProxy
     f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
     fp = ForemanProxy(foreman_proxy_url)
 
     host_pattern = ['ndev', 'nsta', 'nifd', 'npra',
-                    'nifp-es5k', 'nhip', 'nifh', 'win', 'nprd', 'nqa', 'nifp']
+                    'nifp-es5k', 'nhip', 'nifh', 'win', 'nprd', 'nqa']
     if not json_file and check_on_fs:
         jcerts = check_output(
             ["ls", "-f", "/var/lib/puppet/ssl/ca/signed/"]).split()
@@ -93,7 +99,7 @@ def clean_old_certificates(json_file=None, check_on_fs=False):
             print(" {} couldn't be deleted: {}".format(cert, e))
 
 
-@baker.command()
+@main.command()
 def clean_ds():
     """ This is a 'one time use' method that will clear from the DS all instances that doesn't still exist """
     # Retrieve config from ENV
@@ -176,9 +182,15 @@ def clean_ds():
         deleted, saved, len(foreman_hosts)))
 
 
-@baker.command()
+@main.command()
 def clean_old_host():
     """ Method call by cron to clean instances """
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    sh = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    sh.setFormatter(formatter)
+    logger.addHandler(sh)
     logging.info("########## Start Cleaning ###########")
 
     # connect to Foreman and ForemanProxy
@@ -256,11 +268,4 @@ def clean_old_host():
 
 # Read option
 if __name__ == "__main__":
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    sh = logging.StreamHandler()
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    sh.setFormatter(formatter)
-    logger.addHandler(sh)
-
-    baker.run()
+    main()
