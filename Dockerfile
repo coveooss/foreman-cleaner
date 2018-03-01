@@ -2,6 +2,9 @@ FROM ubuntu:16.04
 
 LABEL maintainer "coveo"
 
+# Create puppet user and group with defined UID and GID
+RUN useradd -u 1000 -U puppet
+
 # Install requierements
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y wget \
