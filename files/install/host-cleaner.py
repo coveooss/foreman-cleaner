@@ -172,13 +172,13 @@ def clean_ds():
                     print("{} is not terminated, ignoring this instance".format(host))
                     saved += 1
                     continue
-            print("I will destroy the server {}".format(host))
+            logging.info("I will destroy the server {}".format(host))
             # remove host in the DS
             ds.delete_computer(host)
             deleted += 1
         except Exception as e:
-            print("Something went wrong : {}".format(e))
-    print("{} instances deleted\n{} instances saved\n{} instances in foreman\n".format(
+            logging.error("Something went wrong : {}".format(e))
+    logging.info("{} instances deleted\n{} instances saved\n{} instances in foreman\n".format(
         deleted, saved, len(foreman_hosts)))
 
 
@@ -264,7 +264,7 @@ def clean_old_host():
 if __name__ == "__main__":
     logger = logging.getLogger()
     logger.setLevel(logging.INFO)
-    sh = logging.StreamHandler()
+    sh = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     sh.setFormatter(formatter)
     logger.addHandler(sh)
