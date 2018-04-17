@@ -138,7 +138,7 @@ def clean_ds():
 
     # Get all ds computer
     ds_computers = [attr['dNSHostName'][0].lower()
-                    for c_dn, attr in ds.computers if 'dNSHostName' in attr]
+                    for c_dn, attr in ds.computers if 'dNSHostName' in attr and re.match('.*\.cloud\.coveo\.com$', attr['dNSHostName'][0])]
     to_delete = ds_computers
 
     """
