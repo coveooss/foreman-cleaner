@@ -36,7 +36,8 @@ class AwsDs(object):
     @property
     def computers(self):
         if not self._computers:
-            self._computers = self._con.search_st(self.computers_base_dn, ldap.SCOPE_SUBTREE, '(objectclass=computer)', ['dNSHostName', 'distinguishedName'], 0, 500)
+            self._computers = self._con.search_st(self.computers_base_dn, ldap.SCOPE_SUBTREE, '(objectclass=computer)', [
+                                                  'dNSHostName', 'distinguishedName'], 0, 500)
         return self._computers
 
     def delete_computer(self, hostname):
@@ -47,7 +48,8 @@ class AwsDs(object):
         elif not computer_found:
             raise NotFound("Host not found in DS")
         else:
-            print("DS - delete : {}".format(computer_found[0]['distinguishedName'][0]))
+            print("DS - delete : {} - {}".format(
+                computer_found[0]['dNSHostName'][0], computer_found[0]['distinguishedName'][0]))
             self._con.delete_s(computer_found[0]['distinguishedName'][0])
 
 
