@@ -1,7 +1,9 @@
 import ldap
+import ldap.modlist
 import boto3
 from botocore.exceptions import ClientError
 import re
+import os
 
 
 class NotFound(Exception):
@@ -36,8 +38,7 @@ class AwsDs(object):
     @property
     def computers(self):
         if not self._computers:
-            self._computers = self._con.search_st(self.computers_base_dn, ldap.SCOPE_SUBTREE, '(objectclass=computer)', [
-                                                  'dNSHostName', 'distinguishedName'], 0, 500)
+            self._computers = self._con.search_st(self.computers_base_dn, ldap.SCOPE_SUBTREE, '(objectclass=computer)',[], 0, 500)
         return self._computers
 
     def delete_computer(self, hostname):
@@ -51,6 +52,20 @@ class AwsDs(object):
             print("DS - delete : {} - {}".format(
                 computer_found[0]['dNSHostName'][0], computer_found[0]['distinguishedName'][0]))
             self._con.delete_s(computer_found[0]['distinguishedName'][0])
+
+    def add_computer(self, dn):
+
+        cn = dn.split(",")[0].replace("CN=", "")
+        modlist = {
+            "objectClass": ['top', 'person', 'organizationalPerson', 'user', 'computer'],
+            "cn": cn,
+            "displayName": cn+'$',
+            "userAccountControl": '4096',
+            "SAMAccountName": cn+'$'
+        }
+
+        result = self._con.add_s(dn, ldap.modlist.addModlist(modlist))
+        return result
 
 
 def get_ec2_instance_state(instance_id, ip=None):
@@ -75,3 +90,23 @@ def get_ec2_instance_state(instance_id, ip=None):
         else:
             raise e
     return state
+
+
+def search_ec2_instances():
+    client = boto3.resource('ec2')
+    machine_names = {}
+
+    for instance in client.instances.all():
+        name = ''
+        if instance.tags:
+            for tag in instance.tags:
+                if tag['Key'] == 'opsworks:instance':
+                    name = tag['Value']
+                    break
+                elif tag['Key'] == 'Name':
+                    name = tag['Value']
+            if name:
+                machine_names['{}.{}'.format(name.lower(), os.environ.get('LDAP_HOST'))] = \
+                    {'status': instance.state['Name'], 'cn': name.lower()}
+
+    return machine_names
