@@ -19,7 +19,7 @@ def check_join(auto_heal):
     computers_base_dn = os.environ.get('COMPUTER_DN')
     bind_user_dn = os.environ.get('DS_USER')
     bind_password = os.environ.get('DS_PASSWORD')
-    search_filters = ['-expp', '-aw']
+    search_filters = ['-expp', '-aw', '-wc']
     # Connect to the DS
     try:
         ds = AwsDs(ldap_host, computers_base_dn, bind_user_dn, bind_password)
