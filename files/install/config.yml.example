@@ -1,0 +1,10 @@
+domain_name: 'dev.corp.com'
+domain_user: 'CN=Svc_JoinAD,OU=Dev,DC=corp,DC=com'
+domain_password: 'secret'
+domain_computer_dn: 'OU=Computers,DC=dev,DC=corp,DC=com'
+search_filters:
+  - 'ndev-aw'
+  - 'ndev-exppp'
+  - 'ndev-wc'
+# Enabling autoheal will recreate computer in the active directory
+auto_heal: False

@@ -92,7 +92,7 @@ def get_ec2_instance_state(instance_id, ip=None):
     return state
 
 
-def search_ec2_instances():
+def get_instances_from_ec2(domain_name):
     client = boto3.resource('ec2')
     machine_names = {}
 
@@ -106,7 +106,7 @@ def search_ec2_instances():
                 elif tag['Key'] == 'Name':
                     name = tag['Value']
             if name:
-                machine_names['{}.{}'.format(name.lower(), os.environ.get('LDAP_HOST'))] = \
+                machine_names['{}.{}'.format(name.lower(), domain_name)] = \
                     {'status': instance.state['Name'], 'cn': name.lower()}
 
     return machine_names
