@@ -14,5 +14,5 @@ echo "30 11 * * * root . /root/envs.sh; /usr/bin/python -W ignore /install/host-
 # Add cron to clean DS leftovers
 echo "30 6 * * * root . /root/envs.sh; /usr/bin/python -W ignore /install/host-cleaner.py clean_ds > /proc/1/fd/1" >> /etc/cron.d/foreman-cleaner
 # Add cron to autoheal approbation relation between windows and DS
-echo "30 * * * * root . /root/envs.sh; /usr/bin/python -W ignore /install/check_windows.py check_join --auto_heal=True > /proc/1/fd/1" >> /etc/cron.d/foreman-cleaner
+echo "30 * * * * root . /root/envs.sh; /usr/bin/python -W ignore /install/check_windows.py check_join -c /install/config.yaml > /proc/1/fd/1" >> /etc/cron.d/foreman-cleaner
 service cron restart && tail -f /var/log/cron.log
