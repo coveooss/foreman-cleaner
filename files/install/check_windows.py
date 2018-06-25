@@ -2,10 +2,9 @@ from awsutils import AwsDs
 import ldap
 import logging
 import sys
-import os
-from awsutils import search_ec2_instances
+from awsutils import get_instances_from_ec2
 import click
-
+import yaml
 
 @click.group()
 def main():
@@ -13,16 +12,25 @@ def main():
 
 
 @main.command()
-@click.option("--auto_heal", default=False, help="Recreate missing computer in AD.")
-def check_join(auto_heal):
-    ldap_host = os.environ.get('LDAP_HOST')
-    computers_base_dn = os.environ.get('COMPUTER_DN')
-    bind_user_dn = os.environ.get('DS_USER')
-    bind_password = os.environ.get('DS_PASSWORD')
-    search_filters = ['-expp', '-aw', '-wc']
+@click.option("--config_file", '-c', help="Specify config file")
+def check_join(config_file):
+
+    with open(config_file, 'r') as stream:
+        try:
+            config = yaml.load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+
+    domain_name = config['domain_name']
+    computers_base_dn = config['domain_computer_dn']
+    bind_user_dn = config['domain_user']
+    bind_password = config['domain_password']
+    search_filters = config['search_filters']
+    auto_heal = config['auto_heal']
+
     # Connect to the DS
     try:
-        ds = AwsDs(ldap_host, computers_base_dn, bind_user_dn, bind_password)
+        ds = AwsDs(domain_name, computers_base_dn, bind_user_dn, bind_password)
     except ldap.INVALID_CREDENTIALS:
         raise "Your username or password is incorrect."
 
@@ -34,7 +42,7 @@ def check_join(auto_heal):
     ds_computers_names = [dns_names[0] for cn, dns_names in ds_computers.iteritems() for p in search_filters if dns_names and p in dns_names[0]]
 
     # Get all running ec2 instances
-    ec2_instances = search_ec2_instances()
+    ec2_instances = get_instances_from_ec2(domain_name)
     # Extract only names
     ec2_instances_names = [dns_name for dns_name, instance_infos in ec2_instances.iteritems() for pattern in search_filters if pattern in dns_name ]
     ec2_instances_cn = [instance_infos['cn'] for dns_name, instance_infos in ec2_instances.iteritems() for pattern in
