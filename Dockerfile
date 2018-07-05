@@ -9,7 +9,7 @@ RUN useradd -u 1000 -U puppet
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 
-# Install requierements
+# Install requirements
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -y \
     wget \
     cron \ 
