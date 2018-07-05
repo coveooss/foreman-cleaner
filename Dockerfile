@@ -5,12 +5,24 @@ LABEL maintainer "coveo"
 # Create puppet user and group with defined UID and GID
 RUN useradd -u 1000 -U puppet
 
-# Install requierements
+# Get laset version
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y wget \
-    cron python puppet python-setuptools python-dev build-essential \
-    libsasl2-dev libldap2-dev libssl-dev libffi-dev&& \
-    easy_install pip
+    DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+
+# Install requierements
+RUN DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    wget \
+    cron \ 
+    python \
+    puppet \
+    python-setuptools \
+    python-dev build-essential \
+    libsasl2-dev \
+    libldap2-dev \
+    libssl-dev \
+    libffi-dev
+
+RUN easy_install pip
 
 RUN service puppet stop && systemctl disable puppet
 
