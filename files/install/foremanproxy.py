@@ -1,5 +1,6 @@
 import requests
 import socket
+import subprocess
 
 
 class ForemanProxy(object):
@@ -20,13 +21,14 @@ class ForemanProxy(object):
         self.session.cert = ('/var/lib/puppet/ssl/certs/{}.pem'.format(fqdn), '/var/lib/puppet/ssl/private_keys/{}.pem'.format(fqdn))
 
     def delete_certificate(self, host):
-        uri = "/puppet/ca/{}".format(host)
-        r = self.session.delete(self.url + uri)
-        if r.status_code < 200 or r.status_code >= 300:
-            print('Something went wrong: %s' % r.text)
+        res = subprocess.Popen('/usr/bin/puppet cert clean {}'.format(host)
+                               ,stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+        # Wait for the process end and print error in case of failure
+        if res.wait() != 0:
+            output, error = res.communicate()
+            Exception(error)
         else:
-            print('Puppet - {} deleted'.format(host))
-        return r
+            print('Puppet - certificate {} deleted'.format(host))
 
     def get_certificates(self):
         uri = "/puppet/ca"
