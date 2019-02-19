@@ -42,15 +42,22 @@ class AwsDs(object):
         return self._computers
 
     def delete_computer(self, hostname):
-        computer_found = [attr for c_dn, attr in self.computers if 'dNSHostName' in attr
-                          if re.match('^{}.*'.format(hostname.lower()), attr['dNSHostName'][0].lower())]
+        cn = hostname.split('.')[0].upper()
+        computer_found = []
+        for c_dn, attr in self.computers:
+            if 'dNSHostName' in attr and re.match('^{}.*'.format(hostname.lower()), attr['dNSHostName'][0].lower()):
+                computer_found.append(attr)
+                continue
+            elif cn == attr['cn'][0]:
+                computer_found.append(attr)
+
         if len(computer_found) > 1:
             raise TooManyResult("There is more than 1 result on DS lookup")
         elif not computer_found:
             raise NotFound("Host not found in DS")
         else:
             print("DS - delete : {} - {}".format(
-                computer_found[0]['dNSHostName'][0], computer_found[0]['distinguishedName'][0]))
+                computer_found[0]['sAMAccountName'][0], computer_found[0]['distinguishedName'][0]))
             self._con.delete_s(computer_found[0]['distinguishedName'][0])
 
     def add_computer(self, dn):
