@@ -25,11 +25,6 @@ bind_user_dn = os.environ.get('DS_USER')
 bind_password = os.environ.get('DS_PASSWORD')
 
 
-@click.group()
-def main():
-    pass
-
-
 def foreman_wrapper(foreman_call, call_args=None):
     last_len = 1
     args = call_args or {}
@@ -53,6 +48,15 @@ def foreman_wrapper(foreman_call, call_args=None):
         else:
             result += tmp_result
     return result
+
+
+def build_from_cn(cn):
+    return "{}.{}".format(cn.lower(), ldap_host.lower())
+
+
+@click.group()
+def main():
+    pass
 
 
 @main.command()
@@ -103,13 +107,6 @@ def clean_old_certificates(json_file, check_on_fs):
 def clean_ds():
     """ This is a 'one time use' method that will clear from the DS all instances that doesn't still exist """
     # Retrieve config from ENV
-    foreman_url = os.environ.get('FOREMAN_URL')
-    foreman_user = os.environ.get('FOREMAN_USER')
-    foreman_password = os.environ.get('FOREMAN_PASSWORD')
-    ldap_host = os.environ.get('LDAP_HOST')
-    computers_base_dn = os.environ.get('COMPUTER_DN')
-    bind_user_dn = os.environ.get('DS_USER')
-    bind_password = os.environ.get('DS_PASSWORD')
 
     # Stats
     saved = 0
@@ -137,8 +134,15 @@ def clean_ds():
     foreman_hosts = {host["certname"]: host["ip"] for host in result}
 
     # Get all ds computer
-    ds_computers = [attr['dNSHostName'][0].lower()
-                    for c_dn, attr in ds.computers if 'dNSHostName' in attr and re.match('.*\.cloud\.coveo\.com$', attr['dNSHostName'][0])]
+    ds_computers = []
+
+    for c_dn, attr in ds.computers:
+        if 'dNSHostName' in attr and re.match('.*\.cloud\.coveo\.com$', attr['dNSHostName'][0]):
+            ds_computers.append(attr['dNSHostName'][0].lower())
+            continue
+        else:
+            ds_computers.append(build_from_cn(attr['cn'][0]))
+
     to_delete = ds_computers
 
     """
