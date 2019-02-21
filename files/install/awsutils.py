@@ -48,7 +48,7 @@ class AwsDs(object):
             if 'dNSHostName' in attr and re.match('^{}.*'.format(hostname.lower()), attr['dNSHostName'][0].lower()):
                 computer_found.append(attr)
                 continue
-            elif cn == attr['cn'][0]:
+            elif cn == attr['cn'][0].upper():
                 computer_found.append(attr)
 
         if len(computer_found) > 1:
