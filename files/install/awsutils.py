@@ -75,7 +75,7 @@ class AwsDs(object):
         return result
 
 
-def get_ec2_instance_state(instance_id, ip=None):
+def get_ec2_instance_state(instance_id, ip=None, mac=None):
     client = boto3.client('ec2')
     state = 'terminated'
     options = {"InstanceIds": [instance_id]}
@@ -88,14 +88,38 @@ def get_ec2_instance_state(instance_id, ip=None):
         ]}
 
     try:
-        rsp = client.describe_instances(**options)
-        if rsp['Reservations']:
-            state = rsp['Reservations'][0]['Instances'][0]['State']['Name']
+        if instance_id or ip:
+            rsp = client.describe_instances(**options)
+            if rsp['Reservations']:
+                state = rsp['Reservations'][0]['Instances'][0]['State']['Name']
+        elif mac:
+            state = get_eni_status(mac=mac, client=client)
     except ClientError as e:
         if e.response['Error']['Code'] == 'InvalidInstanceID.NotFound':
             pass
         else:
             raise e
+    return state
+
+
+def get_eni_status(mac, client=None):
+    if not client:
+        client = boto3.client('ec2')
+    state = 'terminated'
+    try:
+        response = client.describe_network_interfaces(
+            Filters=[
+                {
+                    'Name': 'mac-address',
+                    'Values': [mac]
+                },
+            ]
+        )
+
+        state = response["NetworkInterfaces"]["Status"]
+    except TypeError:
+        pass
+
     return state
 
 
