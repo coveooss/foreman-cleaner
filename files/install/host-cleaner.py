@@ -238,6 +238,9 @@ def clean_old_host():
                 if host['ip']:
                     is_terminated = (get_ec2_instance_state(
                         '', ip=host['ip']) == 'terminated')
+                elif host['mac']:
+                    is_terminated = (get_ec2_instance_state(
+                        '', ip=host['ip'], mac=host['mac']) == 'terminated')
                 else:
                     logging.warning(
                         "Can't retrieve EC2 id or ip, skipping {}".format(host["certname"]))
