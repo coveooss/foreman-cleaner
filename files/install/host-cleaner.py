@@ -11,18 +11,20 @@ import socket
 from subprocess import check_output
 import logging
 import sys
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
 # Retrieve config from ENV
-foreman_url = os.environ.get('FOREMAN_URL')
-foreman_user = os.environ.get('FOREMAN_USER')
-foreman_password = os.environ.get('FOREMAN_PASSWORD')
-foreman_proxy_url = "https://{}:{}".format(os.environ.get(
+FOREMAN_URL = os.environ.get('FOREMAN_URL')
+FOREMAN_USER = os.environ.get('FOREMAN_USER')
+FOREMAN_PASSWORD = os.environ.get('FOREMAN_PASSWORD')
+FOREMAN_PROXY_URL = "https://{}:{}".format(os.environ.get(
     'FOREMANPROXY_HOST'), os.getenv('FOREMANPROXY_PORT', '8443'))
-delay = os.getenv('FOREMAN_CLEAN_DELAY', '1')
-ldap_host = os.environ.get('LDAP_HOST')
-computers_base_dn = os.environ.get('COMPUTER_DN')
-bind_user_dn = os.environ.get('DS_USER')
-bind_password = os.environ.get('DS_PASSWORD')
+DELAY = os.getenv('FOREMAN_CLEAN_DELAY', '1')
+LDAP_HOST = os.environ.get('LDAP_HOST')
+COMPUTERS_BASE_DN = os.environ.get('COMPUTER_DN')
+BIND_USER_DN = os.environ.get('DS_USER')
+BIND_PASSWORD = os.environ.get('DS_PASSWORD')
+PROMETHEUS_ENDPOINT = os.environ.get('PROMETHEUS_ENDPOINT')
 
 
 def foreman_wrapper(foreman_call, call_args=None):
@@ -51,7 +53,16 @@ def foreman_wrapper(foreman_call, call_args=None):
 
 
 def build_from_cn(cn):
-    return "{}.{}".format(cn.lower(), ldap_host.lower())
+    return "{}.{}".format(cn.lower(), LDAP_HOST.lower())
+
+
+def push_metrics(metrics_dict):
+    registry = CollectorRegistry()
+    for name, config in metrics_dict.items():
+        g = Gauge("foreman_cleaner_{}".format(name), config['description'], registry=registry, labelnames=["instance"])
+        g.labels(instance='k8s-foreman-cleaner').set_to_current_time()
+        g.labels(instance='k8s-foreman-cleaner').set(config["value"])
+        push_to_gateway(PROMETHEUS_ENDPOINT, job="foreman_cleaner", registry=registry)
 
 
 @click.group()
@@ -66,8 +77,8 @@ def clean_old_certificates(json_file, check_on_fs):
     """ This method that will clear all puppet cert for instances that do not still exist """
     logging.info("########## Start Cleaning ###########")
     # connect to Foreman and ForemanProxy
-    f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
-    fp = ForemanProxy(foreman_proxy_url)
+    f = Foreman(FOREMAN_URL, (FOREMAN_USER, FOREMAN_PASSWORD), api_version=2)
+    fp = ForemanProxy(FOREMAN_PROXY_URL)
 
     host_pattern = ['ndev', 'nsta', 'nifd', 'npra',
                     'nifp-es5k', 'nhip', 'nifh', 'win', 'nprd', 'nqa']
@@ -113,11 +124,11 @@ def clean_ds():
     deleted = 0
 
     # connect to Foreman and ForemanProxy
-    f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
+    f = Foreman(FOREMAN_URL, (FOREMAN_USER, FOREMAN_PASSWORD), api_version=2)
 
     # Connect to the DS
     try:
-        ds = AwsDs(ldap_host, computers_base_dn, bind_user_dn, bind_password)
+        ds = AwsDs(LDAP_HOST, COMPUTERS_BASE_DN, BIND_USER_DN, BIND_PASSWORD)
     except ldap.INVALID_CREDENTIALS:
         raise "Your username or password is incorrect."
 
@@ -191,13 +202,32 @@ def clean_old_host():
     """ Method call by cron to clean instances """
     logging.info("########## Start Cleaning ###########")
 
-    # connect to Foreman and ForemanProxy
-    f = Foreman(foreman_url, (foreman_user, foreman_password), api_version=2)
-    fp = ForemanProxy(foreman_proxy_url)
+    metrics = {
+        'hosts_ok': {
+            'description': 'count of hosts which have a report in the defined delay',
+            'value': 0
+        },
+        'hosts_deleted': {
+            'description': 'count of hosts successfully deleted from foreman puppet and ds',
+            'value': 0
+        },
+        'hosts_skipped': {
+            'description': 'count of hosts skipped because they are still in EC2',
+            'value': 0
+        },
+        'hosts_delete_failed': {
+            'description': 'count hosts unsuccessfully deleted from foreman puppet and ds',
+            'value': 0
+        },
+    }
 
-   # Connect to the DS
+    # connect to Foreman and ForemanProxy
+    f = Foreman(FOREMAN_URL, (FOREMAN_USER, FOREMAN_PASSWORD), api_version=2)
+    fp = ForemanProxy(FOREMAN_PROXY_URL)
+
+    # Connect to the DS
     try:
-        ds = AwsDs(ldap_host, computers_base_dn, bind_user_dn, bind_password)
+        ds = AwsDs(LDAP_HOST, COMPUTERS_BASE_DN, BIND_USER_DN, BIND_PASSWORD)
     except ldap.INVALID_CREDENTIALS:
         raise "Your username or password is incorrect."
 
@@ -228,7 +258,7 @@ def clean_old_host():
         # Get the delta between the last puppet repport and the current date
         elapsed = currentdate - hostdate
         # if the deta is more than $delay days we delete the host
-        if elapsed > datetime.timedelta(hours=int(delay)):
+        if elapsed > datetime.timedelta(hours=int(DELAY)):
             # Make the following 2 call only at the end in order to avoid useless consuming API call
             try:
                 instance_id = instance_id_dict[host['name']]['ec2_instance_id']
@@ -244,10 +274,12 @@ def clean_old_host():
                 else:
                     logging.warning(
                         "Can't retrieve EC2 id or ip, skipping {}".format(host["certname"]))
+                    metrics["hosts_skipped"]["value"] += 1
                     continue
             except Exception as e:
                 logging.warning(
                     "Can't retrieve EC2 state, skipping {} : {}".format(host["certname"], e))
+                metrics["hosts_skipped"]["value"] += 1
                 continue
 
             if is_terminated:
@@ -260,11 +292,18 @@ def clean_old_host():
                     fp.delete_certificate(host["certname"])
                     # remove host in the DS
                     ds.delete_computer(host["certname"])
+                    metrics["hosts_deleted"]["value"] += 1
                 except Exception as e:
                     logging.error("Something went wrong : {}".format(e))
+                    metrics["hosts_delete_failed"]["value"] += 1
+            else:
+                metrics["hosts_skipped"]["value"] += 1
         else:
+            metrics["hosts_ok"]["value"] += 1
             logging.debug("{} OK: Last puppet's run : {}".format(
                 host["certname"], lastcompile))
+
+    push_metrics(metrics)
 
 
 # Read option
