@@ -1,9 +1,0 @@
-domain_name: 'dev.cloud.coveo.com'
-domain_user: 'CN=Svc_JoinAD,OU=Dev,DC=dev,DC=cloud,DC=coveo,DC=com'
-domain_password: 'SA*FFSA*HSDUHWDSDhh873419024hIHheiurh28e0iu'
-domain_computer_dn: 'OU=Computers,OU=CloudDev,DC=dev,DC=cloud,DC=coveo,DC=com'
-search_filters:
-  - 'ndev-aw'
-  - 'ndev-exppp'
-  - 'ndev-wc'
-auto_heal: False
