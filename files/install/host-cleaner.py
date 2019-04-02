@@ -203,6 +203,10 @@ def clean_old_host():
     logging.info("########## Start Cleaning ###########")
 
     metrics = {
+        'hosts_ok': {
+            'description': 'count of hosts which have a report in the defined delay',
+            'value': 0
+        },
         'hosts_deleted': {
             'description': 'count of hosts successfully deleted from foreman puppet and ds',
             'value': 0
@@ -270,10 +274,12 @@ def clean_old_host():
                 else:
                     logging.warning(
                         "Can't retrieve EC2 id or ip, skipping {}".format(host["certname"]))
+                    metrics["hosts_skipped"]["value"] += 1
                     continue
             except Exception as e:
                 logging.warning(
                     "Can't retrieve EC2 state, skipping {} : {}".format(host["certname"], e))
+                metrics["hosts_skipped"]["value"] += 1
                 continue
 
             if is_terminated:
@@ -293,6 +299,7 @@ def clean_old_host():
             else:
                 metrics["hosts_skipped"]["value"] += 1
         else:
+            metrics["hosts_ok"]["value"] += 1
             logging.debug("{} OK: Last puppet's run : {}".format(
                 host["certname"], lastcompile))
 
