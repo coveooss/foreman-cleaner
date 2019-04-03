@@ -4,3 +4,4 @@ requests
 python-ldap 
 boto3
 pyyaml==4.2b4
+prometheus_client
