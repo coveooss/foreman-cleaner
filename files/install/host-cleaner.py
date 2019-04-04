@@ -303,6 +303,7 @@ def clean_old_host():
             logging.debug("{} OK: Last puppet's run : {}".format(
                 host["certname"], lastcompile))
 
+    logging.info("Push metrics to prometheus")
     push_metrics(metrics)
 
 
