@@ -273,9 +273,8 @@ def clean_old_host():
                         '', ip=host['ip'], mac=host['mac']) == 'terminated')
                 else:
                     logging.warning(
-                        "Can't retrieve EC2 id or ip, skipping {}".format(host["certname"]))
-                    metrics["hosts_skipped"]["value"] += 1
-                    continue
+                        "Can't retrieve EC2 id or ip, will destroy {}".format(host["certname"]))
+                    is_terminated = True
             except Exception as e:
                 logging.warning(
                     "Can't retrieve EC2 state, skipping {} : {}".format(host["certname"], e))
