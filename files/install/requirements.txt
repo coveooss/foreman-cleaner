@@ -3,5 +3,5 @@ python-foreman
 requests 
 python-ldap 
 boto3
-pyyaml==4.2b4
+pyyaml==5.3.1
 prometheus_client
